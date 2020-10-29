@@ -7,7 +7,6 @@
 typedef unsigned char byte;
 typedef uint32_t word;
 typedef uint64_t dword;
-typedef void (*operation)(byte *, byte *, word*);
 
 typedef struct {
     const size_t message_bsize;

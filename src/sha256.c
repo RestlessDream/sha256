@@ -66,14 +66,22 @@ void hash(word * msg, size_t blocks, word * out) {
  * @param msg_block - the last message block, that going to be padded;
  * @param size - the whole message size.
  */
-void pad_block(word * msg_block, size_t size) {
+void pad_block(word * msg_block, uint64_t size) {
     size_t block_size = size % sha->block_size;
     size_t pad_zeros = sha->block_size - block_size - 64;
     byte * msg = (byte *) msg_block;
 
     msg[block_size/byte_size] = 0x80;
     memset(msg + block_size/byte_size + 1, 0, pad_zeros/byte_size);
-    *((dword *)(msg + sha->block_wsize - 2)) = size;
+
+    for (size_t i = 0; i < 8; i++) { 
+        if (i < sizeof(uint64_t)) {
+            *(msg + sha->block_bsize - i - 1) = ((byte *)&size)[i];
+        } else {
+            *(msg + sha->block_bsize - i - 1) = 0;
+        }
+
+    }
 }
 
 /**
@@ -143,3 +151,50 @@ dword sigma1_64(dword x) {
 void setup(sha_config * config) {
     sha = config;
 }
+
+/**
+ * Realization of proof of work
+ *
+ * @param in - input message
+ * @param blocks - size of message in blocks
+ * @param zeros_count - seeked zeros count at the begining
+ * @param out - seeked digest
+ *
+ * @return 0 if all OK
+ */
+int proof_of_work(word * in, size_t blocks, size_t zeros_count, word * out) {
+    if (zeros_count >= 64) {
+        return -1;
+    }
+
+    word x = 0;
+    size_t i = 0;
+
+    do {
+        in[blocks * sha->block_wsize + i] = x;
+        hash(in, blocks + 1, out);
+        x++;
+
+        if (x == 0xFFFFFFFF) {
+            i++;
+        }
+    } while(cmpbits(out[sha->message_diggest_bsize/sizeof(word) - 1], 0, zeros_count) == 0);
+
+    return 0;
+}
+
+/**
+ * Finds out is the value v1 starts count zeros
+ *
+ * @param v1 - tested value
+ * @param v2 - ored value
+ * @return 1 - if value starts with count zeros
+ */
+int cmpbits(word v1, word v2, size_t count) {
+    if (((v1 | v2) & (0xFFFFFFFF >> (32 - count))) != 0) {
+        return 0;
+    }
+
+    return 1;
+}
+

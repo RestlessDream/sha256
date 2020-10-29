@@ -20,5 +20,7 @@ dword sum0_64(dword x);
 dword sum1_64(dword x);
 dword sigma0_64(dword x); 
 dword sigma1_64(dword x); 
+int proof_of_work(word * in, size_t blocks, size_t zeros_count, word * out);
+int cmpbits(word v1, word v2, size_t count);
 
 #endif //_SHA_256_H_

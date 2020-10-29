@@ -11,18 +11,19 @@ extern size_t byte_size;
 extern sha_config sha_256;
 extern sha_config * sha;
 
-int parse_arguments(int argc, char ** argv, FILE ** input, size_t * file_size);
+int parse_arguments(int argc, char ** argv, FILE ** input, size_t * file_size, int * zeros);
 
 int main(int argc, char ** argv) {
     FILE * input;
     size_t file_size;
+    int zeros = -1;
     
-    if (parse_arguments(argc, argv, &input, &file_size) != 0) {
+    if (parse_arguments(argc, argv, &input, &file_size, &zeros) != 0) {
         return 1;
     }
 
     setup(&sha_256);
-    BUFFER_SIZE = (file_size/sha->block_bsize + 1)*sha->block_bsize;
+    BUFFER_SIZE = (file_size/sha->block_bsize + 3)*sha->block_bsize;
     byte * rbuffer = malloc(BUFFER_SIZE * sizeof(byte));
     byte * wbuffer = malloc(sha->message_diggest_bsize + 1);
 
@@ -37,10 +38,15 @@ int main(int argc, char ** argv) {
             read_blocks++;
         }
 
-        hash((word *)rbuffer, read_blocks, (word *)wbuffer); 
+        if (zeros == -1) {
+            hash((word *)rbuffer, read_blocks, (word *)wbuffer); 
+        } else {
+            proof_of_work((word *)rbuffer, read_blocks, zeros, (word *)wbuffer);
+            read_blocks++;
+        }
 
-        for (int i = 0; i < sha->message_diggest_bsize; i++) {
-            if (fprintf(stdout, "%02x", wbuffer[i]) == 0) {
+        for (int i = 0; i < sha->message_diggest_bsize/sizeof(word); i++) {
+            if (fprintf(stdout, "%08x", ((word *)wbuffer)[i]) == 0) {
                 fprintf(stderr, "Error occured while writting to the output.");
                 return -1;
             }
@@ -58,7 +64,7 @@ int main(int argc, char ** argv) {
     return 0;
 }
 
-int parse_arguments(int argc, char ** argv, FILE ** input, size_t * file_size) {
+int parse_arguments(int argc, char ** argv, FILE ** input, size_t * file_size, int * zeros) {
     int option;
     if (argc >= 2) {
         *input = fopen(argv[1], "r");
@@ -67,12 +73,16 @@ int parse_arguments(int argc, char ** argv, FILE ** input, size_t * file_size) {
         fseek(*input, 0L, SEEK_SET);
     }
 
-    while ((option = getopt(argc, argv, "h")) != -1) {
+    while ((option = getopt(argc, argv, "p:h")) != -1) {
         switch (option) {
+            case 'p':
+                *zeros = atoi(optarg);
+                break;
             case 'h':
-                printf("Usage:  sha256 file_path\n\n\
-SHA-256 standart decryption\\encyption.\n\
+                printf("Usage:  sha256 file_path [options]\n\n\
+SHA-256 standart hash function.\n\
 Options:\n\
+  -p    [size] - Proof of Work. size zeros in hash res.\n\
   -h    display this help.\n");
 
                 return 1;
